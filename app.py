@@ -1,1 +1,246 @@
-{"nbformat":4,"nbformat_minor":0,"metadata":{"colab":{"provenance":[],"authorship_tag":"ABX9TyPAwp/hXYhDDlUWgMdJpq0O"},"kernelspec":{"name":"python3","display_name":"Python 3"},"language_info":{"name":"python"}},"cells":[{"cell_type":"code","execution_count":3,"metadata":{"colab":{"base_uri":"https://localhost:8080/"},"id":"ajJd6Sgp8Ls3","executionInfo":{"status":"ok","timestamp":1791438728544,"user_tz":-330,"elapsed":27,"user":{"displayName":"Praneetha Vutukuru","userId":"11826901314340840044"}},"outputId":"56bcfeaf-df5b-44de-dc08-f7bf26b3dffa"},"outputs":[{"output_type":"stream","name":"stdout","text":["Overwriting app.py\n"]}],"source":["%%writefile app.py\n","\n","import streamlit as st\n","import pandas as pd\n","import numpy as np\n","import joblib\n","\n","st.set_page_config(\n","    page_title=\"Water Quality Prediction\",\n","    page_icon=\"💧\",\n","    layout=\"wide\"\n",")\n","\n","preprocessor = joblib.load(\"water_preprocessor.pkl\")\n","selector = joblib.load(\"water_feature_selector.pkl\")\n","model = joblib.load(\"water_best_model.pkl\")\n","model_info = joblib.load(\"water_model_info.pkl\")\n","\n","feature_names = [\n","    \"ph\",\n","    \"Hardness\",\n","    \"Solids\",\n","    \"Chloramines\",\n","    \"Sulfate\",\n","    \"Conductivity\",\n","    \"Organic_carbon\",\n","    \"Trihalomethanes\",\n","    \"Turbidity\"\n","]\n","\n","st.title(\"💧 Explainable AI-Based Water Quality Prediction\")\n","st.markdown(\n","    \"Enter the water quality parameters below to predict whether the water is potable.\"\n",")\n","\n","st.subheader(\"Water Quality Parameters\")\n","\n","col1, col2, col3 = st.columns(3)\n","\n","with col1:\n","    ph = st.number_input(\n","        \"pH\",\n","        min_value=0.0,\n","        max_value=14.0,\n","        value=7.0,\n","        step=0.1\n","    )\n","\n","    hardness = st.number_input(\n","        \"Hardness\",\n","        min_value=0.0,\n","        value=200.0,\n","        step=1.0\n","    )\n","\n","    solids = st.number_input(\n","        \"Solids\",\n","        min_value=0.0,\n","        value=12000.0,\n","        step=100.0\n","    )\n","\n","with col2:\n","    chloramines = st.number_input(\n","        \"Chloramines\",\n","        min_value=0.0,\n","        value=7.0,\n","        step=0.1\n","    )\n","\n","    sulfate = st.number_input(\n","        \"Sulfate\",\n","        min_value=0.0,\n","        value=300.0,\n","        step=1.0\n","    )\n","\n","    conductivity = st.number_input(\n","        \"Conductivity\",\n","        min_value=0.0,\n","        value=400.0,\n","        step=1.0\n","    )\n","\n","with col3:\n","    organic_carbon = st.number_input(\n","        \"Organic Carbon\",\n","        min_value=0.0,\n","        value=12.0,\n","        step=0.1\n","    )\n","\n","    trihalomethanes = st.number_input(\n","        \"Trihalomethanes\",\n","        min_value=0.0,\n","        value=60.0,\n","        step=0.1\n","    )\n","\n","    turbidity = st.number_input(\n","        \"Turbidity\",\n","        min_value=0.0,\n","        value=4.0,\n","        step=0.1\n","    )\n","\n","st.divider()\n","\n","predict_button = st.button(\n","    \"🔍 Predict Water Quality\",\n","    use_container_width=True\n",")\n","\n","if predict_button:\n","\n","    new_water = pd.DataFrame({\n","        \"ph\": [ph],\n","        \"Hardness\": [hardness],\n","        \"Solids\": [solids],\n","        \"Chloramines\": [chloramines],\n","        \"Sulfate\": [sulfate],\n","        \"Conductivity\": [conductivity],\n","        \"Organic_carbon\": [organic_carbon],\n","        \"Trihalomethanes\": [trihalomethanes],\n","        \"Turbidity\": [turbidity]\n","    })\n","\n","    new_water = new_water[feature_names]\n","\n","    try:\n","\n","        processed_data = preprocessor.transform(new_water)\n","\n","        expected_features = model.n_features_in_\n","\n","        if processed_data.shape[1] != expected_features:\n","\n","            if (\n","                selector.get_support().sum() == expected_features\n","                and processed_data.shape[1] == len(feature_names)\n","            ):\n","                processed_data = selector.transform(processed_data)\n","            else:\n","                raise ValueError(\n","                    f\"Feature mismatch: processed data has \"\n","                    f\"{processed_data.shape[1]} features, \"\n","                    f\"but model expects {expected_features}.\"\n","                )\n","\n","        if processed_data.shape[1] != expected_features:\n","            raise ValueError(\n","                f\"Final feature mismatch: \"\n","                f\"{processed_data.shape[1]} features received, \"\n","                f\"{expected_features} expected.\"\n","            )\n","\n","        prediction = model.predict(processed_data)[0]\n","\n","        if hasattr(model, \"predict_proba\"):\n","            probabilities = model.predict_proba(processed_data)[0]\n","            not_potable_probability = probabilities[0] * 100\n","            potable_probability = probabilities[1] * 100\n","        else:\n","            probabilities = None\n","            not_potable_probability = None\n","            potable_probability = None\n","\n","        st.divider()\n","        st.subheader(\"Prediction Result\")\n","\n","        if prediction == 1:\n","\n","            st.success(\"💧 WATER IS POTABLE\")\n","\n","            if potable_probability is not None:\n","                st.metric(\n","                    \"Potable Probability\",\n","                    f\"{potable_probability:.2f}%\"\n","                )\n","\n","        else:\n","\n","            st.error(\"⚠️ WATER IS NOT POTABLE\")\n","\n","            if not_potable_probability is not None:\n","                st.metric(\n","                    \"Not Potable Probability\",\n","                    f\"{not_potable_probability:.2f}%\"\n","                )\n","\n","        if probabilities is not None:\n","\n","            st.subheader(\"Prediction Probabilities\")\n","\n","            probability_data = pd.DataFrame({\n","                \"Class\": [\n","                    \"Not Potable\",\n","                    \"Potable\"\n","                ],\n","                \"Probability (%)\": [\n","                    not_potable_probability,\n","                    potable_probability\n","                ]\n","            })\n","\n","            st.bar_chart(\n","                probability_data.set_index(\"Class\")\n","            )\n","\n","        st.subheader(\"Input Values\")\n","\n","        display_data = new_water.T.reset_index()\n","        display_data.columns = [\"Parameter\", \"Value\"]\n","\n","        st.dataframe(\n","            display_data,\n","            use_container_width=True,\n","            hide_index=True\n","        )\n","\n","        st.subheader(\"Model Information\")\n","\n","        if isinstance(model_info, dict):\n","\n","            if \"best_model_name\" in model_info:\n","                st.write(\n","                    \"**Final Model:**\",\n","                    model_info[\"best_model_name\"]\n","                )\n","\n","            if \"feature_selection\" in model_info:\n","                st.write(\n","                    \"**Feature Selection:**\",\n","                    model_info[\"feature_selection\"]\n","                )\n","\n","        st.info(\n","            \"This prediction is generated using the trained machine learning \"\n","            \"model from the Water Quality Prediction project.\"\n","        )\n","\n","    except Exception as e:\n","\n","        st.error(\n","            f\"Prediction error: {str(e)}\"\n","        )"]}]}
+%%writefile app.py
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+
+st.set_page_config(
+    page_title="Water Quality Prediction",
+    page_icon="💧",
+    layout="wide"
+)
+
+preprocessor = joblib.load("water_preprocessor.pkl")
+selector = joblib.load("water_feature_selector.pkl")
+model = joblib.load("water_best_model.pkl")
+model_info = joblib.load("water_model_info.pkl")
+
+feature_names = [
+    "ph",
+    "Hardness",
+    "Solids",
+    "Chloramines",
+    "Sulfate",
+    "Conductivity",
+    "Organic_carbon",
+    "Trihalomethanes",
+    "Turbidity"
+]
+
+st.title("💧 Explainable AI-Based Water Quality Prediction")
+st.markdown(
+    "Enter the water quality parameters below to predict whether the water is potable."
+)
+
+st.subheader("Water Quality Parameters")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    ph = st.number_input(
+        "pH",
+        min_value=0.0,
+        max_value=14.0,
+        value=7.0,
+        step=0.1
+    )
+
+    hardness = st.number_input(
+        "Hardness",
+        min_value=0.0,
+        value=200.0,
+        step=1.0
+    )
+
+    solids = st.number_input(
+        "Solids",
+        min_value=0.0,
+        value=12000.0,
+        step=100.0
+    )
+
+with col2:
+    chloramines = st.number_input(
+        "Chloramines",
+        min_value=0.0,
+        value=7.0,
+        step=0.1
+    )
+
+    sulfate = st.number_input(
+        "Sulfate",
+        min_value=0.0,
+        value=300.0,
+        step=1.0
+    )
+
+    conductivity = st.number_input(
+        "Conductivity",
+        min_value=0.0,
+        value=400.0,
+        step=1.0
+    )
+
+with col3:
+    organic_carbon = st.number_input(
+        "Organic Carbon",
+        min_value=0.0,
+        value=12.0,
+        step=0.1
+    )
+
+    trihalomethanes = st.number_input(
+        "Trihalomethanes",
+        min_value=0.0,
+        value=60.0,
+        step=0.1
+    )
+
+    turbidity = st.number_input(
+        "Turbidity",
+        min_value=0.0,
+        value=4.0,
+        step=0.1
+    )
+
+st.divider()
+
+predict_button = st.button(
+    "🔍 Predict Water Quality",
+    use_container_width=True
+)
+
+if predict_button:
+
+    new_water = pd.DataFrame({
+        "ph": [ph],
+        "Hardness": [hardness],
+        "Solids": [solids],
+        "Chloramines": [chloramines],
+        "Sulfate": [sulfate],
+        "Conductivity": [conductivity],
+        "Organic_carbon": [organic_carbon],
+        "Trihalomethanes": [trihalomethanes],
+        "Turbidity": [turbidity]
+    })
+
+    new_water = new_water[feature_names]
+
+    try:
+
+        processed_data = preprocessor.transform(new_water)
+
+        expected_features = model.n_features_in_
+
+        if processed_data.shape[1] != expected_features:
+
+            if (
+                selector.get_support().sum() == expected_features
+                and processed_data.shape[1] == len(feature_names)
+            ):
+                processed_data = selector.transform(processed_data)
+            else:
+                raise ValueError(
+                    f"Feature mismatch: processed data has "
+                    f"{processed_data.shape[1]} features, "
+                    f"but model expects {expected_features}."
+                )
+
+        if processed_data.shape[1] != expected_features:
+            raise ValueError(
+                f"Final feature mismatch: "
+                f"{processed_data.shape[1]} features received, "
+                f"{expected_features} expected."
+            )
+
+        prediction = model.predict(processed_data)[0]
+
+        if hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(processed_data)[0]
+            not_potable_probability = probabilities[0] * 100
+            potable_probability = probabilities[1] * 100
+        else:
+            probabilities = None
+            not_potable_probability = None
+            potable_probability = None
+
+        st.divider()
+        st.subheader("Prediction Result")
+
+        if prediction == 1:
+
+            st.success("💧 WATER IS POTABLE")
+
+            if potable_probability is not None:
+                st.metric(
+                    "Potable Probability",
+                    f"{potable_probability:.2f}%"
+                )
+
+        else:
+
+            st.error("⚠️ WATER IS NOT POTABLE")
+
+            if not_potable_probability is not None:
+                st.metric(
+                    "Not Potable Probability",
+                    f"{not_potable_probability:.2f}%"
+                )
+
+        if probabilities is not None:
+
+            st.subheader("Prediction Probabilities")
+
+            probability_data = pd.DataFrame({
+                "Class": [
+                    "Not Potable",
+                    "Potable"
+                ],
+                "Probability (%)": [
+                    not_potable_probability,
+                    potable_probability
+                ]
+            })
+
+            st.bar_chart(
+                probability_data.set_index("Class")
+            )
+
+        st.subheader("Input Values")
+
+        display_data = new_water.T.reset_index()
+        display_data.columns = ["Parameter", "Value"]
+
+        st.dataframe(
+            display_data,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.subheader("Model Information")
+
+        if isinstance(model_info, dict):
+
+            if "best_model_name" in model_info:
+                st.write(
+                    "**Final Model:**",
+                    model_info["best_model_name"]
+                )
+
+            if "feature_selection" in model_info:
+                st.write(
+                    "**Feature Selection:**",
+                    model_info["feature_selection"]
+                )
+
+        st.info(
+            "This prediction is generated using the trained machine learning "
+            "model from the Water Quality Prediction project."
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Prediction error: {str(e)}"
+        )
